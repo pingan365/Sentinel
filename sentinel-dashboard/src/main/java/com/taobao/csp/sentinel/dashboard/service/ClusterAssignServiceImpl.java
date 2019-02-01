@@ -29,6 +29,8 @@ import com.alibaba.csp.sentinel.cluster.ClusterStateManager;
 import com.alibaba.csp.sentinel.util.AssertUtil;
 import com.alibaba.csp.sentinel.util.function.Tuple2;
 
+import com.alibaba.fastjson.JSON;
+import com.google.common.collect.Lists;
 import com.taobao.csp.sentinel.dashboard.client.SentinelApiClient;
 import com.taobao.csp.sentinel.dashboard.domain.cluster.ClusterAppAssignResultVO;
 import com.taobao.csp.sentinel.dashboard.domain.cluster.ClusterGroupEntity;
@@ -36,6 +38,7 @@ import com.taobao.csp.sentinel.dashboard.domain.cluster.config.ClusterClientConf
 import com.taobao.csp.sentinel.dashboard.domain.cluster.config.ServerFlowConfig;
 import com.taobao.csp.sentinel.dashboard.domain.cluster.config.ServerTransportConfig;
 import com.taobao.csp.sentinel.dashboard.domain.cluster.request.ClusterAppAssignMap;
+import com.taobao.csp.sentinel.dashboard.repository.zookeeper.ClusterConfigZookeeperPublisher;
 import com.taobao.csp.sentinel.dashboard.util.MachineUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,6 +58,8 @@ public class ClusterAssignServiceImpl implements ClusterAssignService {
     private SentinelApiClient sentinelApiClient;
     @Autowired
     private ClusterConfigService clusterConfigService;
+    @Autowired
+    private ClusterConfigZookeeperPublisher clusterConfigZookeeperPublisher;
 
     @Override
     public ClusterAppAssignResultVO unbindClusterServer(String app, String machineId) {
@@ -133,6 +138,20 @@ public class ClusterAssignServiceImpl implements ClusterAssignService {
 
         // Unbind remaining (unassigned) machines.
         applyAllRemainingMachineSet(app, remainingSet, failedClientSet);
+
+        // save into zookeeper
+        List<ClusterGroupEntity> clusterGroupEntities = Lists.newArrayList();
+        for (ClusterAppAssignMap assignMap : clusterMap){
+            ClusterGroupEntity clusterGroupEntity = new ClusterGroupEntity();
+            clusterGroupEntity.setMachineId(assignMap.getMachineId());
+            clusterGroupEntity.setClientSet(assignMap.getClientSet());
+            clusterGroupEntity.setIp(assignMap.getIp());
+            clusterGroupEntity.setPort(assignMap.getPort());
+            clusterGroupEntities.add(clusterGroupEntity);
+        }
+        clusterConfigZookeeperPublisher.modifyClusterServerConfig(app, null, JSON.toJSONString(clusterGroupEntities));
+
+
 
         return new ClusterAppAssignResultVO()
             .setFailedClientSet(failedClientSet)

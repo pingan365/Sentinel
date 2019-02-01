@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 import com.alibaba.csp.sentinel.cluster.ClusterStateManager;
 import com.alibaba.csp.sentinel.util.StringUtil;
 
+import com.alibaba.fastjson.JSON;
 import com.taobao.csp.sentinel.dashboard.client.SentinelApiClient;
 import com.taobao.csp.sentinel.dashboard.discovery.AppInfo;
 import com.taobao.csp.sentinel.dashboard.discovery.AppManagement;
@@ -36,6 +37,7 @@ import com.taobao.csp.sentinel.dashboard.domain.cluster.state.ClusterUniversalSt
 import com.taobao.csp.sentinel.dashboard.domain.cluster.config.ClusterClientConfig;
 import com.taobao.csp.sentinel.dashboard.domain.cluster.config.ServerFlowConfig;
 import com.taobao.csp.sentinel.dashboard.domain.cluster.config.ServerTransportConfig;
+import com.taobao.csp.sentinel.dashboard.repository.zookeeper.ClusterConfigZookeeperPublisher;
 import com.taobao.csp.sentinel.dashboard.util.AsyncUtils;
 import com.taobao.csp.sentinel.dashboard.util.ClusterEntityUtils;
 import com.taobao.csp.sentinel.dashboard.util.MachineUtils;
@@ -53,6 +55,8 @@ public class ClusterConfigService {
     private SentinelApiClient sentinelApiClient;
     @Autowired
     private AppManagement appManagement;
+    @Autowired
+    private ClusterConfigZookeeperPublisher clusterConfigZookeeperPublisher;
 
     public CompletableFuture<Void> modifyClusterClientConfig(ClusterClientModifyRequest request) {
         if (notClientRequestValid(request)) {
@@ -61,6 +65,7 @@ public class ClusterConfigService {
         String app = request.getApp();
         String ip = request.getIp();
         int port = request.getPort();
+        clusterConfigZookeeperPublisher.modifyClusterClientConfig(app,ip, JSON.toJSONString(request.getClientConfig()));
         return sentinelApiClient.modifyClusterClientConfig(app, ip, port, request.getClientConfig())
             .thenCompose(v -> sentinelApiClient.modifyClusterMode(app, ip, port, ClusterStateManager.CLUSTER_CLIENT));
     }

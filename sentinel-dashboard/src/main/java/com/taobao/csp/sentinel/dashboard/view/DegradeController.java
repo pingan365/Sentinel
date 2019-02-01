@@ -25,6 +25,8 @@ import com.taobao.csp.sentinel.dashboard.datasource.entity.rule.DegradeRuleEntit
 import com.taobao.csp.sentinel.dashboard.discovery.MachineInfo;
 import com.taobao.csp.sentinel.dashboard.client.SentinelApiClient;
 import com.taobao.csp.sentinel.dashboard.repository.rule.InMemDegradeRuleStore;
+import com.taobao.csp.sentinel.dashboard.repository.zookeeper.DegradeRuleZookeeperProvider;
+import com.taobao.csp.sentinel.dashboard.repository.zookeeper.DegradeRuleZookeeperPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +48,10 @@ public class DegradeController {
     private InMemDegradeRuleStore repository;
     @Autowired
     private SentinelApiClient sentinelApiClient;
+    @Autowired
+    private DegradeRuleZookeeperProvider degradeRuleZookeeperProvider;
+    @Autowired
+    private DegradeRuleZookeeperPublisher degradeRuleZookeeperPublisher;
 
     @ResponseBody
     @RequestMapping("/rules.json")
@@ -60,7 +66,8 @@ public class DegradeController {
             return Result.ofFail(-1, "port can't be null");
         }
         try {
-            List<DegradeRuleEntity> rules = sentinelApiClient.fetchDegradeRuleOfMachine(app, ip, port);
+            //List<DegradeRuleEntity> rules = sentinelApiClient.fetchDegradeRuleOfMachine(app, ip, port);
+            List<DegradeRuleEntity> rules = degradeRuleZookeeperProvider.getRules(app);
             rules = repository.saveAll(rules);
             return Result.ofSuccess(rules);
         } catch (Throwable throwable) {
@@ -198,6 +205,12 @@ public class DegradeController {
 
     private boolean publishRules(String app, String ip, Integer port) {
         List<DegradeRuleEntity> rules = repository.findAllByMachine(MachineInfo.of(app, ip, port));
-        return sentinelApiClient.setDegradeRuleOfMachine(app, ip, port, rules);
+        //return sentinelApiClient.setDegradeRuleOfMachine(app, ip, port, rules);
+        try {
+            degradeRuleZookeeperPublisher.publish(app,rules);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 }
